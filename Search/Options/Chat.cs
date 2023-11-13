@@ -1,5 +1,6 @@
-﻿namespace Search.Services;
+﻿using SharedLib.Services;
 
+namespace Search.Options;
 
 public record Chat
 {

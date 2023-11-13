@@ -1,7 +1,9 @@
-using Search.Options;
-using Search.Services;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using SharedLib.Options;
+using SharedLib.Services;
+using Search.Options;
+using Search.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +35,8 @@ static class ProgramExtensions
 {
     public static void RegisterConfiguration(this WebApplicationBuilder builder)
     {
-        builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
+        //builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
+        builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
 
         builder.Services.AddOptions<OpenAi>()
             .Bind(builder.Configuration.GetSection(nameof(OpenAi)));
@@ -61,6 +64,7 @@ static class ProgramExtensions
                     completionsDeployment: openAiOptions.Value?.CompletionsDeployment ?? String.Empty,
                     maxConversationTokens: openAiOptions.Value?.MaxConversationTokens ?? String.Empty,
                     maxCompletionTokens: openAiOptions.Value?.MaxCompletionTokens ?? String.Empty,
+                    maxEmbeddingTokens: openAiOptions.Value?.MaxEmbeddingTokens ?? String.Empty,                                        
                     logger: provider.GetRequiredService<ILogger<OpenAiService>>()
                 );
             }
@@ -80,6 +84,7 @@ static class ProgramExtensions
                     databaseName: mongoDbOptions.Value?.DatabaseName ?? String.Empty,
                     collectionNames: mongoDbOptions.Value?.CollectionNames ?? String.Empty,
                     maxVectorSearchResults: mongoDbOptions.Value?.MaxVectorSearchResults ?? String.Empty,
+                    vectorIndexType: mongoDbOptions.Value?.VectorIndexType ?? String.Empty,
                     openAiService: provider.GetRequiredService<OpenAiService>(),
                     logger: provider.GetRequiredService<ILogger<MongoDbService>>()
                 );

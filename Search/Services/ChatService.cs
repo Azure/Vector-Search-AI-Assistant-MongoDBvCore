@@ -1,6 +1,9 @@
-﻿using Search.Constants;
-using Search.Models;
+﻿using Humanizer.Localisation.TimeToClockNotation;
+using Search.Constants;
+using SharedLib.Models;
+using SharedLib.Services;
 using SharpToken;
+using Microsoft.ML.Tokenizers;
 
 namespace Search.Services;
 
@@ -113,41 +116,43 @@ public class ChatService
     /// <summary>
     /// Receive a prompt from a user, Vectorize it from _openAIService Get a completion from _openAiService
     /// </summary>
-    public async Task<string> GetChatCompletionAsync(string? sessionId, string userPrompt)
+    public async Task<string> GetChatCompletionAsync(string? sessionId, string userPrompt, string collectionName)
     {
 
         try
         { 
             ArgumentNullException.ThrowIfNull(sessionId);
 
-            //Retrieve conversation, including latest prompt.
-            //We monitor and trim the length of the conversation here to be more efficient in our call to generate vectors on this text.
-            (string conversationAndUserPrompt, int conversationTokens) = GetChatSessionConversation(sessionId, userPrompt);
+
+            //Get embeddings for user prompt and number of tokens it uses.
+            (float[] promptVectors, int promptTokens) = await _openAiService.GetEmbeddingsAsync(sessionId, userPrompt);
+            //Create the prompt message object. Created here to give it a timestamp that precedes the completion message.
+            Message promptMessage = new Message(sessionId, nameof(Participants.User), promptTokens, default, userPrompt);
 
 
-            //Get embeddings for user prompt and conversation.
-            (float[] promptVectors, int vectorTokens) = await _openAiService.GetEmbeddingsAsync(sessionId, conversationAndUserPrompt);
+            //Do vector search on the user prompt, return list of documents
+            string retrievedDocuments = await _mongoDbService.VectorSearchAsync(collectionName, promptVectors);
+
+            //Get the most recent conversation history up to _maxConversationTokens
+            string conversation = GetConversationHistory(sessionId);
 
 
-            //Do vector search on prompt embeddings, return list of documents
-            string retrievedDocuments = await _mongoDbService.VectorSearchAsync(promptVectors);
+            //Construct our prompts sent to Azure OpenAI. Calculate token usage and trim the RAG payload and conversation history to prevent exceeding token limits.
+            (string augmentedContent, string conversationAndUserPrompt) = BuildPrompts(userPrompt, conversation, retrievedDocuments);
 
 
-            //Estimate token usage and trim vector data sent to OpenAI to prevent exceptions caused by exceeding token limits.
-            (string augmentedContent, int newUserPromptTokens) = BuildPromptAndData(sessionId, userPrompt, conversationTokens, retrievedDocuments);
+            //Generate the completion from Azure OpenAI to return to the user
+            (string completionText, int ragTokens, int completionTokens) = await _openAiService.GetChatCompletionAsync(sessionId, conversationAndUserPrompt, augmentedContent);
 
 
-            //Generate the completion to return to the user
-            (string completion, int promptTokens, int completionTokens) = await _openAiService.GetChatCompletionAsync(sessionId, conversationAndUserPrompt, augmentedContent);
+            //Create the completion message object
+            Message completionMessage = new Message(sessionId, nameof(Participants.Assistant), completionTokens, ragTokens, completionText);
 
-
-            //Add to prompt and completion to cache, then persist in Cosmos as transaction
-            Message promptMessage = new Message(sessionId, nameof(Participants.User), newUserPromptTokens, default, userPrompt);
-            Message completionMessage = new Message(sessionId, nameof(Participants.Assistant), completionTokens, promptTokens, completion);        
+            //Add the user prompt and completion to cache, then persist to Cosmos in a transaction
             await AddPromptCompletionMessagesAsync(sessionId, promptMessage, completionMessage);
 
 
-            return completion;
+            return completionText;
 
         }
         catch (Exception ex) 
@@ -164,95 +169,104 @@ public class ChatService
     /// amount of tokens the vector search result data and the user prompt will consume. If the search result data exceeds the configured amount
     /// the function reduces the number of vectors, reducing the amount of data sent.
     /// </summary>
-    private (string augmentedContent, int newUserPromptTokens) BuildPromptAndData(string sessionId, string userPrompt, int conversationTokens, string augmentedContent)
+    private (string augmentedContent, string conversationAndUserPrompt) BuildPrompts(string userPrompt, string conversation, string retrievedData)
     {
         
         string updatedAugmentedContent = "";
+        string updatedConversationAndUserPrompt = "";
 
-        //SharpToken only estimates token usage and often undercounts. Add a buffer of 300 tokens.
-        int maxGPTTokens = 4096 - 300;
+        
+        //SharpToken only estimates token usage and often undercounts. Add a buffer of 200 tokens.
+        int bufferTokens = 200;
 
         //Create a new instance of SharpToken
-        var encoding = GptEncoding.GetEncodingForModel("gpt-3.5-turbo");
+        var encoding = GptEncoding.GetEncoding("cl100k_base");  //encoding base for GPT 3.5 Turbo and GPT 4
+        //var encoding = GptEncoding.GetEncodingForModel("gpt-35-turbo");
 
-        //Get count of vectors on rag data
-        List<int> ragVectors = encoding.Encode(augmentedContent);
+        List<int> ragVectors = encoding.Encode(retrievedData);
         int ragTokens = ragVectors.Count;
 
-        //Get count of vectors on user prompt (return)
-        int promptTokens = encoding.Encode(userPrompt).Count;
+        List<int> convVectors = encoding.Encode(conversation);
+        int convTokens = convVectors.Count;
 
-        //Get count of vectors on conversation. This only counts the prompt and completion tokens. Does not include the tokens used to process the rag data.
-        
+        int userPromptTokens = encoding.Encode(userPrompt).Count;
 
-        //If RAG data plus user prompt, plus conversation, plus tokens for completion is greater than max tokens, reduce by the size of data sent.
-        if (ragTokens + promptTokens + conversationTokens + _maxCompletionTokens > maxGPTTokens)
+
+        //If RAG data plus user prompt, plus conversation, plus tokens for completion is greater than max completion tokens we've defined, reduce the rag data and conversation by relative amount.
+        int totalTokens = ragTokens + convTokens + userPromptTokens + bufferTokens;
+
+        //Too much data, reduce the rag data and conversation data by the same percentage. Do not reduce the user prompt as this is required for the completion.
+        if (totalTokens > _maxCompletionTokens)
         {
+            //Get the number of tokens to reduce by
+            int tokensToReduce = totalTokens - _maxCompletionTokens;
 
-            //Calculate how many vectors we can pass
-            int ragVectorsToTake = maxGPTTokens - promptTokens - _maxCompletionTokens - conversationTokens;
+            //Get the percentage of tokens to reduce by
+            float ragTokenPct = (float)ragTokens / totalTokens;
+            float conTokenPct = (float)convTokens / totalTokens;
 
-            //Get the reduced number vectors
-            List<int> trimmedRagVectors = (List<int>)ragVectors.GetRange(0, ragVectorsToTake);
+            //Calculate the new number of tokens for each data set
+            int newRagTokens = (int)Math.Round(ragTokens - (ragTokenPct * tokensToReduce), 0);
+            int newConvTokens = (int)Math.Round(convTokens - (conTokenPct * tokensToReduce), 0);
 
-            //Trim the data so it will not go over GPT's max token limit.
+            
+            //Get the reduced set of RAG vectors
+            List<int> trimmedRagVectors = ragVectors.GetRange(0, newRagTokens);
+            //Convert the vectors back to text
             updatedAugmentedContent = encoding.Decode(trimmedRagVectors);
 
+            int offset = convVectors.Count - newConvTokens;
+
+            //Get the reduce set of conversation vectors
+            List<int> trimmedConvVectors = convVectors.GetRange(offset, newConvTokens);
+            
+            //Convert vectors back into reduced conversation length
+            updatedConversationAndUserPrompt = encoding.Decode(trimmedConvVectors);
+
+            //add user prompt
+            updatedConversationAndUserPrompt += Environment.NewLine + userPrompt;
+
+
         }
-        //If everything + _maxCompletionTokens is less than 4097 then good to go.
-        else if (ragTokens + promptTokens + conversationTokens + _maxCompletionTokens < maxGPTTokens)
+        //If everything is less than _maxCompletionTokens then good to go.
+        else
         {
-            int index = _sessions.FindIndex(s => s.SessionId == sessionId);
-
+            
             //Return all of the content
-            updatedAugmentedContent = augmentedContent;
+            updatedAugmentedContent = retrievedData;
+            updatedConversationAndUserPrompt = conversation + Environment.NewLine + userPrompt;
         }
 
 
-        return (augmentedContent: updatedAugmentedContent, newUserPromptTokens: promptTokens);
+        return (augmentedContent: updatedAugmentedContent, conversationAndUserPrompt: updatedConversationAndUserPrompt);
 
     }
 
     /// <summary>
-    /// Get current conversation from newest to oldest up to max conversation tokens and add to the prompt
+    /// Get the most recent conversation history to provide additional context for the completion LLM
     /// </summary>
-    private (string conversation, int tokens) GetChatSessionConversation(string sessionId, string userPrompt)
+    private string GetConversationHistory(string sessionId)
     {
 
-        
         int? tokensUsed = 0;
-
-        List<string> conversationBuilder = new List<string>();
-
+        
         int index = _sessions.FindIndex(s => s.SessionId == sessionId);
 
-        List<Message> messages = _sessions[index].Messages;
+        List<Message> conversationMessages = _sessions[index].Messages.ToList(); //make a full copy
 
-        //Start at the end of the list and work backwards
-        for (int i = messages.Count - 1; i >= 0; i--)
-        {
+        //Iterate through these in reverse order to get the most recent conversation history up to _maxConversationTokens
+        var trimmedMessages = conversationMessages
+            .OrderByDescending(m => m.TimeStamp)
+            .TakeWhile(m => (tokensUsed += m.Tokens) <= _maxConversationTokens)
+            .Select(m => m.Text)
+            .ToList();
 
-            tokensUsed += messages[i].Tokens;
+        trimmedMessages.Reverse();
 
-            if (tokensUsed > _maxConversationTokens)
-                break;
+        //Return as a string
+        string conversation = string.Join(Environment.NewLine, trimmedMessages.ToArray());
 
-            conversationBuilder.Add(messages[i].Text);
-
-        }
-
-        //Invert the chat messages to put back into chronological order and output as string.        
-        string conversation = string.Join(Environment.NewLine, conversationBuilder.Reverse<string>());
-
-        //Add a new line if needed, then append the current userPrompt
-        if (conversation.Length > 0)
-            conversation += Environment.NewLine;
-
-        conversation += userPrompt;
-
-
-        return (conversation, (int)tokensUsed);
-
+        return conversation;
 
     }
 

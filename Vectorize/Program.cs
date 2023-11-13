@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Vectorize.Options;
-using Vectorize.Services;
+using SharedLib.Options;
+using SharedLib.Services;
 
 
 
@@ -32,7 +32,8 @@ using Vectorize.Services;
         })
         .ConfigureAppConfiguration(con =>
         {
-            con.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
+            //con.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
+            con.AddJsonFile("local.settings.json", optional: true, reloadOnChange: true);
         })
         .ConfigureServices(s =>
         {
@@ -49,10 +50,13 @@ using Vectorize.Services;
                 {
                     return new OpenAiService
                     (
-                        endpoint: openAiOptions.Value?.Endpoint ?? string.Empty,
-                        key: openAiOptions.Value?.Key ?? string.Empty,
-                        embeddingsDeployment: openAiOptions.Value?.EmbeddingsDeployment ?? string.Empty,
-                        maxTokens: openAiOptions.Value?.MaxTokens ?? string.Empty,
+                        endpoint: openAiOptions.Value?.Endpoint ?? String.Empty,
+                        key: openAiOptions.Value?.Key ?? String.Empty,
+                        embeddingsDeployment: openAiOptions.Value?.EmbeddingsDeployment ?? String.Empty,
+                        completionsDeployment: openAiOptions.Value?.CompletionsDeployment ?? String.Empty,
+                        maxConversationTokens: openAiOptions.Value?.MaxConversationTokens ?? String.Empty,
+                        maxCompletionTokens: openAiOptions.Value?.MaxCompletionTokens ?? String.Empty,
+                        maxEmbeddingTokens: openAiOptions.Value?.MaxEmbeddingTokens ?? String.Empty,
                         logger: provider.GetRequiredService<ILogger<OpenAi>>()
                     );
                 }
@@ -74,6 +78,8 @@ using Vectorize.Services;
                         connection: mongoOptions.Value?.Connection ?? string.Empty,
                         databaseName: mongoOptions.Value?.DatabaseName ?? string.Empty,
                         collectionNames: mongoOptions.Value?.CollectionNames ?? string.Empty,
+                        maxVectorSearchResults: mongoOptions.Value?.MaxVectorSearchResults ?? string.Empty,
+                        vectorIndexType: mongoOptions.Value?.VectorIndexType ?? string.Empty,
                         openAiService: provider.GetRequiredService<OpenAiService>(),
                         logger: provider.GetRequiredService<ILogger<MongoDb>>()
                     );

@@ -1,5 +1,6 @@
 ﻿@using Search.Constants
 @using Search.Services
+@using SharedLib.Models
 @using Humanizer
 @inject ChatService chatService
 @inject IJSRuntime JSRuntime
@@ -131,6 +132,15 @@
     <div class="bg-primary text-light px-4 py-2 rounded-top-5 text-dark d-flex flex-column justify-content-center">
         @if (CurrentSession?.SessionId != Interface.EMPTY_SESSION)
         {
+            <div class="bg-primary text-light px-2 py-2">
+                <label for="dropdown"><strong class="">Select Data:</strong></label>
+                <select id="collectionName" name="collectionName" @bind="@CollectionName" class="">
+                    <option value="products">Products</option>
+                    <option value="customers">Customers</option>
+                    <option value="salesOrders">Sales Orders</option>
+                </select>
+            </div>
+
             <div class="input-group">
                 <i class="bi bi-body-text input-group-text" aria-hidden="true"></i>
                 <input class="form-control form-control-sm" type="text" @bind="@UserPromptSet" @onkeydown="@Enter" @oninput="@((e) => { UserPrompt=e.Value?.ToString();})" rows="1" placeholder="<Your Message>"></input>
@@ -156,9 +166,12 @@
 	[Parameter]
     public EventCallback OnNavBarVisibilityUpdated { get; set; }
 
+
     private string? UserPrompt { get; set; }
 
     private string? UserPromptSet { get; set; }
+
+    private string? CollectionName { get; set; }
 	
     private List<Message>? _messagesInChat;
     private static event EventHandler<Session>? _onMessagePosted;
@@ -228,11 +241,16 @@
         }
 
         if (UserPrompt != String.Empty)
-        {           
+        {
             UserPromptSet = String.Empty;
         }
 
-        await chatService.GetChatCompletionAsync(CurrentSession?.SessionId, UserPrompt);
+        if (CollectionName is null)
+        {
+            CollectionName = "products";
+        }
+
+        await chatService.GetChatCompletionAsync(CurrentSession?.SessionId, UserPrompt, CollectionName);
 
         if(_messagesInChat?.Count == 2)
         {

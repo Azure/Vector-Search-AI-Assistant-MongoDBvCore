@@ -4,8 +4,7 @@ using System.Net;
 using Microsoft.Azure.Functions.Worker.Http;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-
-using Vectorize.Services;
+using SharedLib.Services;
 
 
 namespace Vectorize
@@ -24,7 +23,7 @@ namespace Vectorize
 
         [Function("IngestAndVectorize")]
         public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = null)] HttpRequestData req)
         {
             _logger.LogInformation("Ingest and Vectorize HTTP trigger function is processing a request.");
             try
@@ -32,10 +31,6 @@ namespace Vectorize
                 
                 // Ingest json data into MongoDB collections
                 await IngestDataFromBlobStorageAsync();
-
-
-                //Generate vectors on the data and store in vectors collection
-                await GenerateAndStoreVectorsAsync();
 
 
                 var response = req.CreateResponse(HttpStatusCode.OK);
@@ -60,67 +55,40 @@ namespace Vectorize
 
             try
             {
-                BlobContainerClient blobContainerClient = new BlobContainerClient(new Uri("https://cosmosdbcosmicworks.blob.core.windows.net/cosmic-works-mongo/"));
+                BlobContainerClient blobContainerClient = new BlobContainerClient(new Uri("https://cosmosdbcosmicworks.blob.core.windows.net/cosmic-works-mongo-vcore/"));
+
+                //hard-coded here.  In a real-world scenario, you would want to dynamically get the list of blobs in the container and iterate through them.
+                //as well as drive all of the schema and meta-data from a configuration file.
+                List<string> blobIds = new List<string>() { "products", "customers", "salesOrders" };
 
 
-                //Download and ingest product.json
-                _logger.LogInformation("Ingesting product data from blob storage.");
-
-
-                BlobClient productBlob = blobContainerClient.GetBlobClient("product.json");
-                BlobDownloadStreamingResult pResult = await productBlob.DownloadStreamingAsync();
-
-                using(StreamReader pReader = new StreamReader(pResult.Content)) 
+                foreach(string blobId in blobIds)
                 {
-                    string productJson = await pReader.ReadToEndAsync();
-                    await _mongo.ImportJsonAsync("product", productJson);
+                    BlobClient blob = blobContainerClient.GetBlobClient($"{blobId}.json");
+                    if (await blob.ExistsAsync())
+                    {
+                        //Download and ingest products.json
+                        _logger.LogInformation($"Ingesting {blobId} data from blob storage.");
 
+                        BlobClient blobClient = blobContainerClient.GetBlobClient($"{blobId}.json");
+                        BlobDownloadStreamingResult blobResult = await blobClient.DownloadStreamingAsync();
+
+                        using (StreamReader pReader = new StreamReader(blobResult.Content))
+                        {
+                            string json = await pReader.ReadToEndAsync();
+                            await _mongo.ImportAndVectorizeAsync(blobId, json);
+
+                        }
+                        
+                        _logger.LogInformation($"{blobId} data ingestion complete.");
+
+                    }
                 }
-                _logger.LogInformation("Product data ingestion complete.");
 
-
-
-                //Download and ingest customer.json
-                _logger.LogInformation("Ingesting customer and order data from blob storage.");
-
-                BlobClient customerBlob = blobContainerClient.GetBlobClient("customer.json");
-                BlobDownloadStreamingResult cResult = await customerBlob.DownloadStreamingAsync();
-
-                using (StreamReader reader = new StreamReader(cResult.Content))
-                {
-                    string customerJson = await reader.ReadToEndAsync();
-                    await _mongo.ImportJsonAsync("customer", customerJson);
-
-                }
-                _logger.LogInformation("Customer and order data ingestion complete.");
             }
             catch(Exception ex)
             {
                 _logger.LogError($"Exception: IngestDataFromBlobStorageAsync(): {ex.Message}");
-                throw;
-            }
-        }
-
-        public async Task GenerateAndStoreVectorsAsync()
-        {
-
-            try
-            {
-                //Generate Product Vectors and store in vectors collection
-                int productVectors = await _mongo.InitialProductVectorsAsync();
-
-                //Generate Customer and Sales Order Vectors and store in vectors collection
-                (int customerVectors, int orderVectors) = await _mongo.InitialCustomerAndSalesOrderVectorsAsync();
-
-                _logger.LogInformation("Generate and Store Vectors Complete.");
-                _logger.LogInformation($"{productVectors} products completed.");
-                _logger.LogInformation($"{customerVectors} customers completed.");
-                _logger.LogInformation($"{orderVectors} orders completed.");
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Exception: GenerateAndStoreVectorsAsync(): {ex.Message}");
                 throw;
             }
         }

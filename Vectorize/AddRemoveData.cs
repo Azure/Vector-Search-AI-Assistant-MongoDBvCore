@@ -2,8 +2,8 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using Microsoft.Azure.Functions.Worker.Http;
-using Vectorize.Models;
-using Vectorize.Services;
+using SharedLib.Models;
+using SharedLib.Services;
 
 namespace Vectorize
 {
@@ -22,7 +22,7 @@ namespace Vectorize
 
         [Function("AddRemoveData")]
         public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "put", Route = null)] HttpRequestData req)
         {
             _logger.LogInformation("C# HTTP trigger function processed a request.");
 
