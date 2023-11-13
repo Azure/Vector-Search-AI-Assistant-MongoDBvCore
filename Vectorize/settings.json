@@ -1,0 +1,19 @@
+{
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "OpenAi__Endpoint": "",
+    "OpenAi__Key": "",
+    "OpenAI__CompletionsDeployment": "",
+    "OpenAi__EmbeddingsDeployment": "",
+    "OpenAi__MaxConversationTokens": "1000",
+    "OpenAi__MaxCompletionTokens": "4000",
+    "OpenAi__MaxEmbeddingTokens": "8000",
+    "MongoDb__Connection": "",
+    "MongoDb__DatabaseName": "retaildb",
+    "MongoDb__CollectionNames": "products, customers, salesOrders, completions",
+    "MongoDb__MaxVectorSearchResults": "10",
+    "MongoDb__VectorIndexType": "hnsw" // ivf, hnsw
+  },
+  "IsEncrypted": false
+}

@@ -9,9 +9,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Humanizer" Version="2.*" />
-	  <PackageReference Include="MongoDB.Driver" Version="2.*" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.20.1" />
+	<PackageReference Include="MongoDB.Driver" Version="2.*" />
     <PackageReference Include="Newtonsoft.Json" Version="13.*" />
     <PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.*" />
     <PackageReference Include="SharpToken" Version="1.2.12" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SharedLib\SharedLib.csproj" />
   </ItemGroup>
 </Project>

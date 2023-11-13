@@ -1,7 +1,7 @@
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson;
 
-namespace Search.Models;
+namespace SharedLib.Models;
 
 public record Message
 {
