@@ -168,7 +168,7 @@ public class OpenAiService
         try
         {
         
-            var systemMessage = new ChatRequestUserMessage(_systemPromptRetailAssistant + documents);
+            var systemMessage = new ChatRequestSystemMessage(_systemPromptRetailAssistant + documents);
             var userMessage = new ChatRequestUserMessage(userPrompt);
 
 
