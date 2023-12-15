@@ -168,8 +168,8 @@ public class OpenAiService
         try
         {
         
-            ChatMessage systemMessage = new ChatMessage(ChatRole.System, _systemPromptRetailAssistant + documents);
-            ChatMessage userMessage = new ChatMessage(ChatRole.User, userPrompt);
+            var systemMessage = new ChatRequestUserMessage(_systemPromptRetailAssistant + documents);
+            var userMessage = new ChatRequestUserMessage(userPrompt);
 
 
             ChatCompletionsOptions options = new()
@@ -219,8 +219,8 @@ public class OpenAiService
     public async Task<string> SummarizeAsync(string sessionId, string userPrompt)
     {
 
-        ChatMessage systemMessage = new ChatMessage(ChatRole.System, _summarizePrompt);
-        ChatMessage userMessage = new ChatMessage(ChatRole.User, userPrompt);
+        var systemMessage = new ChatRequestSystemMessage(_summarizePrompt);
+        var userMessage = new ChatRequestUserMessage(userPrompt);
 
         ChatCompletionsOptions options = new()
         {
