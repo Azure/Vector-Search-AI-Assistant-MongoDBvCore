@@ -97,9 +97,8 @@
 @if (_renamePopUpOpen)
 {
     <Input Caption="Rename a Chat"
-        Value="@_popUpText"
-        OnClose="@OnInputClose" >
-    </Input>
+           Value="@_popUpText"
+           OnClose="@OnInputClose" />
 }
 
 
@@ -294,7 +293,7 @@
             CurrentSession.Name = string.Empty;
 
             if (ChatSessions is not null & ChatSessions?.Count > 0)
-            {   
+            {
                 var match = ChatSessions?.FirstOrDefault();
                 if (match is not null)
                 {
@@ -302,7 +301,7 @@
                     CurrentSession.Name = match.Name;
                     CurrentSession.TokensUsed = match.TokensUsed;
                 }
-            }            
+            }
         }
 
         await OnChatClicked.InvokeAsync(CurrentSession);
