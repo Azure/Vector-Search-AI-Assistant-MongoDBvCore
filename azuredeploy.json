@@ -89,6 +89,7 @@
       "sku": "[parameters('openAiSku')]",
       "maxConversationTokens": "100",
       "maxCompletionTokens": "500",
+      "maxEmbeddingTokens": "8000",
       "completionsModel": {
         "name": "gpt-35-turbo",
         "version": "0301",
@@ -300,10 +301,12 @@
         "OPENAI__COMPLETIONSDEPLOYMENT": "[variables('openAiSettings').completionsModel.deployment.name]",
         "OPENAI__MAXCONVERSATIONTOKENS": "[variables('openAiSettings').maxConversationTokens]",
         "OPENAI__MAXCOMPLETIONTOKENS": "[variables('openAiSettings').maxCompletionTokens]",
+        "OPENAI__MAXEMBEDDINGTOKENS": "[variables('openAiSettings').maxEmbeddingTokens]",
         "MONGODB__CONNECTION": "[format('mongodb+srv://{0}:{1}@{2}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000', variables('mongovCoreSettings').mongoClusterLogin, variables('mongovCoreSettings').mongoClusterPassword, variables('mongovCoreSettings').mongoClusterName)]",
         "MONGODB__DATABASENAME": "retaildb",
         "MONGODB__COLLECTIONNAMES": "product,customer,vectors,completions",
-        "MONGODB__MAXVECTORSEARCHRESULTS": "10"
+        "MONGODB__MAXVECTORSEARCHRESULTS": "10",
+        "MONGODB__VECTORINDEXTYPE": "ivf"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]",
@@ -326,10 +329,15 @@
         "OPENAI__ENDPOINT": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').endpoint]",
         "OPENAI__KEY": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').key1]",
         "OPENAI__EMBEDDINGSDEPLOYMENT": "[variables('openAiSettings').embeddingsModel.deployment.name]",
-        "OPENAI__MAXTOKENS": "8191",
+        "OPENAI__COMPLETIONSDEPLOYMENT": "[variables('openAiSettings').completionsModel.deployment.name]",
+        "OPENAI__MAXCONVERSATIONTOKENS": "[variables('openAiSettings').maxConversationTokens]",
+        "OPENAI__MAXCOMPLETIONTOKENS": "[variables('openAiSettings').maxCompletionTokens]",
+        "OPENAI__MAXEMBEDDINGTOKENS": "[variables('openAiSettings').maxEmbeddingTokens]",
         "MONGODB__CONNECTION": "[format('mongodb+srv://{0}:{1}@{2}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000', variables('mongovCoreSettings').mongoClusterLogin, variables('mongovCoreSettings').mongoClusterPassword, variables('mongovCoreSettings').mongoClusterName)]",
         "MONGODB__DATABASENAME": "retaildb",
-        "MONGODB__COLLECTIONNAMES": "product,customer,vectors,completions"
+        "MONGODB__COLLECTIONNAMES": "product,customer,vectors,completions",
+        "MONGODB__MAXVECTORSEARCHRESULTS": "10",
+        "MONGODB__VECTORINDEXTYPE": "ivf"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]",
