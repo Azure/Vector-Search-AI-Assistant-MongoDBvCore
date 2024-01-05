@@ -52,7 +52,7 @@ public class OpenAiService
     /// </summary>
     public int MaxCompletionTokens
     {
-        get => _maxCompletionTokens; 
+        get => _maxCompletionTokens;
     }
 
     /// <summary>
@@ -109,7 +109,7 @@ public class OpenAiService
             _client = new OpenAIClient(key, options);
         else
             _client = new(new Uri(endpoint), new AzureKeyCredential(key), options);
-        
+
 
     }
 
@@ -127,10 +127,8 @@ public class OpenAiService
 
         try
         {
-            EmbeddingsOptions options = new EmbeddingsOptions()
+            EmbeddingsOptions options = new EmbeddingsOptions(_embeddingsModelOrDeployment, new List<string> { input })
             {
-                Input = new List<string> { input },
-                DeploymentName = _embeddingsModelOrDeployment,
                 User = sessionId
             };
 
@@ -140,7 +138,7 @@ public class OpenAiService
 
             Embeddings embeddings = response.Value;
 
-            
+
             responseTokens = embeddings.Usage.TotalTokens;
 
             embedding = embeddings.Data[0].Embedding.ToArray();
@@ -152,7 +150,7 @@ public class OpenAiService
             string message = $"OpenAiService.GetEmbeddingsAsync(): {ex.Message}";
             _logger.LogError(message);
             throw;
-            
+
         }
     }
 
@@ -167,9 +165,9 @@ public class OpenAiService
 
         try
         {
-        
-            ChatMessage systemMessage = new ChatMessage(ChatRole.System, _systemPromptRetailAssistant + documents);
-            ChatMessage userMessage = new ChatMessage(ChatRole.User, userPrompt);
+
+            var systemMessage = new ChatRequestSystemMessage(_systemPromptRetailAssistant + documents);
+            var userMessage = new ChatRequestUserMessage(userPrompt);
 
 
             ChatCompletionsOptions options = new()
@@ -189,7 +187,7 @@ public class OpenAiService
             };
 
             Response<ChatCompletions> completionsResponse = await _client.GetChatCompletionsAsync(options);
-        
+
 
             ChatCompletions completions = completionsResponse.Value;
 
@@ -200,7 +198,7 @@ public class OpenAiService
             );
 
         }
-        catch ( Exception ex ) 
+        catch ( Exception ex )
         {
 
             string message = $"OpenAiService.GetChatCompletionAsync(): {ex.Message}";
@@ -219,8 +217,8 @@ public class OpenAiService
     public async Task<string> SummarizeAsync(string sessionId, string userPrompt)
     {
 
-        ChatMessage systemMessage = new ChatMessage(ChatRole.System, _summarizePrompt);
-        ChatMessage userMessage = new ChatMessage(ChatRole.User, userPrompt);
+        var systemMessage = new ChatRequestSystemMessage(_summarizePrompt);
+        var userMessage = new ChatRequestUserMessage(userPrompt);
 
         ChatCompletionsOptions options = new()
         {
