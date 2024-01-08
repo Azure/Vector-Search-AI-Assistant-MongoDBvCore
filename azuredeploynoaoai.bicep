@@ -63,22 +63,10 @@ param appGitRepository string = 'https://github.com/Azure/Vector-Search-AI-Assis
 @description('Git repository branch for the application source. This defaults to the [**main** branch of the `Azure/Vector-Search-Ai-Assistant-MongoDBvCore`](https://github.com/Azure/Vector-Search-AI-Assistant-MongoDBvCore/tree/main) repository.')
 param appGetRepositoryBranch string = 'main'
 
-var deployedRegion = {
-  'East US': {
-    armName: toLower('eastus')
-  }
-  'South Central US': {
-    armName: toLower('southcentralus')
-  }
-  'West Europe': {
-    armName: toLower('westeurope')
-  }
-}
-
 var openAiSettings = {
   accountName: openAiAccountName
   accountKey: openAiAccountKey
-  endPoint: 'https://${openaiAccountName}.openai.azure.com/'
+  endPoint: 'https://${openAiAccountName}.openai.azure.com/'
   sku: openAiSku
   maxConversationTokens: '100'
   maxCompletionTokens: '500'
@@ -96,6 +84,7 @@ var openAiSettings = {
       name: openAiEmbeddingsModelName
     }
   }
+}
 
 var mongovCoreSettings = {
   mongoClusterName: '${name}-mongo'
@@ -212,7 +201,7 @@ resource appServiceWebSettings 'Microsoft.Web/sites/config@2022-03-01' = {
     OPENAI__ENDPOINT: openAiSettings.endPoint
     OPENAI__KEY: openAiSettings.accountKey
     OPENAI__EMBEDDINGSDEPLOYMENT: openAiSettings.embeddingsModel.deployment.name
-    OPENAI__COMPLETIONSDEPLOYMENT: openaisettings.completionsModel.deployment.name
+    OPENAI__COMPLETIONSDEPLOYMENT: openAiSettings.completionsModel.deployment.name
     OPENAI__MAXCONVERSATIONTOKENS: openAiSettings.maxConversationTokens
     OPENAI__MAXCOMPLETIONTOKENS: openAiSettings.maxCompletionTokens
     MONGODB__CONNECTION: 'mongodb+srv://${mongovCoreSettings.mongoClusterLogin}:${mongovCoreSettings.mongoClusterPassword}@${mongovCoreSettings.mongoClusterName}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
