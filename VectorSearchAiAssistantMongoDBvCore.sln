@@ -15,7 +15,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SharedLib", "..\AzureAiStudio-MongoDBvCore\SharedLib\SharedLib.csproj", "{FF807B70-8F25-4A28-A017-3DA79ADD4DB2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SharedLib", "SharedLib\SharedLib.csproj", "{FF807B70-8F25-4A28-A017-3DA79ADD4DB2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
