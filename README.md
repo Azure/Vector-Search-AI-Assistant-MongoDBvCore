@@ -125,19 +125,28 @@ All connection information for Azure Cosmos DB and Azure OpenAI Service is zero-
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure%2FVector-Search-Ai-Assistant-MongoDBvCore%2Fmain%2Fazuredeploy.json)
 
 The provided ARM or Bicep Template will provision the following resources:
-1. Azure Cosmos DB for MongoDB vCore. This stores retail data with HNSW vectors and the user prompts and completions from the chat application.
+1. Azure Cosmos DB for MongoDB vCore. This stores retail data with IVF or HNSW vectors and the user prompts and completions from the chat application.
 1. Azure App service. This will be configured to deploy the Search web application from **this** GitHub repository. This will work fine if no changes are made. If you want it to deploy from your forked repository, modify the Deploy To Azure button below.
 1. Azure Open AI account with the `gpt-35-turbo` and `text-embedding-ada-002` models deployed.
 1. Azure Functions. This will run on the same hosting plan as the Azure App Service.
 
-**Note:** It will be necessary to increase the quota limits for both Azure OpenAI models once you have provisioned the services for this solution. You can increase these by going into Azure OpenAI studio to deployments and updating the transaction limits.
+**Note:** It will be necessary to increase the quota limits for both Azure OpenAI models once you have provisioned the services for this solution. You can increase these by going into Azure OpenAI studio to deployments and updating the transaction limits. Just set at the maximum allowable.
 
-### Installation from Fork
+### Install with existing Azure OpenAI account
 
-1. Fork this repository to your own GitHub account.
-1. Modify "appGitRepository" variable in the ARM or Bicep Template (depending on which you use to deploy) to point to your fork of this repository: https://github.com/MyGitHubAccount/Vector-Search-AI-Assistant-MongoDBvCore.git
-1. If using the Deploy to Azure button above, modify this README.md file to change the path for the Deploy To Azure button to your local repository.
-1. If you deploy the application first, then fork it, you can go to the Deployment Center in Azure Portal for the Azure Web Apps and Functions and update the repository by disconnecting and connecting an external git repository pointing to your fork.
+If you have an Azure OpenAI account and models already deployed, you can deploy this solution and leverage your existing deployed models rather than deploy new ones. This is useful to save money or if you are capacity constrained and need to leverage existing Azure OpenAI resources.
+
+[![Deploy with Existing Azure OpenAI](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure%2FVector-Search-Ai-Assistant-MongoDBvCore%2Fmain%2Fazuredeploynoaoai.json)
+
+**Note: Installation from Fork**
+
+If you fork this repository to your own GitHub account and then deploy, it is recommended to deploy from Bicep and not this README file. Follow these steps:
+
+1. Open the azuredeploy.bicep, modify the "appGitRepository" variable to point to your fork of this repository: https://github.com/{MyGitHubAccount}/Vector-Search-AI-Assistant-MongoDBvCore.git
+1. Install Bicep Tools Extension in VS Code.
+1. Right click the Bicep file in VS Code and select Deploy. Then follow the prompts.
+
+If you deploy the application first before doing this step, you can go to the Deployment Center in Azure Portal for the Azure Web Apps and Functions and update the repository by disconnecting and connecting an external git repository pointing to your fork.
 
 
 ### Initial data load
