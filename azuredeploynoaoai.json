@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.22.6.54827",
-      "templateHash": "13638871251175842378"
+      "version": "0.24.24.22086",
+      "templateHash": "14273225779941310528"
     }
   },
   "parameters": {
@@ -25,7 +25,7 @@
         "eastus2",
         "northcentralus",
         "southcentralus"
-          ],
+      ],
       "metadata": {
         "description": "Location where all resources will be deployed. This value defaults to the **East US** region."
       }
@@ -35,7 +35,7 @@
       "defaultValue": "[uniqueString(resourceGroup().id)]",
       "maxLength": 15,
       "metadata": {
-        "description": "Unique name for the deployed services below. Max length 15 characters, alphanumeric only:\r\n- Azure Cosmos DB for MongoDB vCore\r\n- Azure OpenAI Service\r\n- Azure App Service\r\n- Azure Functions\r\n\r\nThe name defaults to a unique string generated from the resource group identifier.\r\n"
+        "description": "Unique name for the deployed services below. Max length 15 characters, alphanumeric only:\r\n- Azure Cosmos DB for MongoDB vCore\r\n- Azure App Service\r\n- Azure Functions\r\n\r\nThe name defaults to a unique string generated from the resource group identifier.\r\n"
       }
     },
     "appServiceSku": {
@@ -73,6 +73,34 @@
         "description": "MongoDB vCore password. 8-256 characters, 3 of the following: lower case, upper case, numeric, symbol."
       }
     },
+    "openAiAccountName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Specifies the Azure OpenAI account name."
+      }
+    },
+    "openAiAccountKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Specifies the key for Azure OpenAI account."
+      }
+    },
+    "openAiCompletionsModelDeploymentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Specifies the DEPLOYMENT NAME for the GPT model in your Azure OpenAI account."
+      }
+    },
+    "openAiEmbeddingsDeploymentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Specifies the DEPLOYMENT NAME for the embbeddings model in you Azure OpenAI account."
+      }
+    },
     "appGitRepository": {
       "type": "string",
       "defaultValue": "https://github.com/Azure/Vector-Search-AI-Assistant-MongoDBvCore.git",
@@ -90,35 +118,21 @@
   },
   "variables": {
     "openAiSettings": {
-      "name": "[format('{0}-openai', parameters('name'))]",
+      "accountName": "[parameters('openAiAccountName')]",
+      "accountKey": "[parameters('openAiAccountKey')]",
+      "endPoint": "[format('https://{0}.openai.azure.com/', parameters('openAiAccountName'))]",
       "sku": "[parameters('openAiSku')]",
       "maxConversationTokens": "100",
       "maxCompletionTokens": "500",
-      "maxEmbeddingTokens": "8000",
       "completionsModel": {
-        "name": "gpt-35-turbo",
-        "version": "0301",
         "deployment": {
-          "name": "completions"
+          "name": "[parameters('openAiCompletionsModelDeploymentName')]"
         }
       },
       "embeddingsModel": {
-        "name": "text-embedding-ada-002",
-        "version": "2",
         "deployment": {
-          "name": "embeddings"
+          "name": "[parameters('openAiEmbeddingsDeploymentName')]"
         }
-      }
-    },
-    "deployedRegion": {
-      "East US": {
-        "armName": "[toLower('eastus')]"
-      },
-      "South Central US": {
-        "armName": "[toLower('southcentralus')]"
-      },
-      "West Europe": {
-        "armName": "[toLower('westeurope')]"
       }
     },
     "mongovCoreSettings": {
@@ -150,7 +164,7 @@
   "resources": [
     {
       "type": "Microsoft.DocumentDB/mongoClusters",
-      "apiVersion": "2023-03-01-preview",
+      "apiVersion": "2023-09-15-preview",
       "name": "[variables('mongovCoreSettings').mongoClusterName]",
       "location": "[parameters('location')]",
       "properties": {
@@ -170,7 +184,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/mongoClusters/firewallRules",
-      "apiVersion": "2023-03-01-preview",
+      "apiVersion": "2023-09-15-preview",
       "name": "[format('{0}/{1}', variables('mongovCoreSettings').mongoClusterName, 'allowAzure')]",
       "properties": {
         "startIpAddress": "0.0.0.0",
@@ -182,7 +196,7 @@
     },
     {
       "type": "Microsoft.DocumentDB/mongoClusters/firewallRules",
-      "apiVersion": "2023-03-01-preview",
+      "apiVersion": "2023-09-15-preview",
       "name": "[format('{0}/{1}', variables('mongovCoreSettings').mongoClusterName, 'allowAll')]",
       "properties": {
         "startIpAddress": "0.0.0.0",
@@ -190,57 +204,6 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/mongoClusters', variables('mongovCoreSettings').mongoClusterName)]"
-      ]
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts",
-      "apiVersion": "2022-12-01",
-      "name": "[variables('openAiSettings').name]",
-      "location": "[parameters('location')]",
-      "sku": {
-        "name": "[variables('openAiSettings').sku]"
-      },
-      "kind": "OpenAI",
-      "properties": {
-        "customSubDomainName": "[variables('openAiSettings').name]",
-        "publicNetworkAccess": "Enabled"
-      }
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts/deployments",
-      "apiVersion": "2022-12-01",
-      "name": "[format('{0}/{1}', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]",
-      "properties": {
-        "model": {
-          "format": "OpenAI",
-          "name": "[variables('openAiSettings').embeddingsModel.name]",
-          "version": "[variables('openAiSettings').embeddingsModel.version]"
-        },
-        "scaleSettings": {
-          "scaleType": "Standard"
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]"
-      ]
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts/deployments",
-      "apiVersion": "2022-12-01",
-      "name": "[format('{0}/{1}', variables('openAiSettings').name, variables('openAiSettings').completionsModel.deployment.name)]",
-      "properties": {
-        "model": {
-          "format": "OpenAI",
-          "name": "[variables('openAiSettings').completionsModel.name]",
-          "version": "[variables('openAiSettings').completionsModel.version]"
-        },
-        "scaleSettings": {
-          "scaleType": "Standard"
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]"
       ]
     },
     {
@@ -300,25 +263,21 @@
       "kind": "string",
       "properties": {
         "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', variables('appServiceSettings').web.name), '2020-02-02').InstrumentationKey]",
-        "OPENAI__ENDPOINT": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').endpoint]",
-        "OPENAI__KEY": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').key1]",
+        "OPENAI__ENDPOINT": "[variables('openAiSettings').endPoint]",
+        "OPENAI__KEY": "[variables('openAiSettings').accountKey]",
         "OPENAI__EMBEDDINGSDEPLOYMENT": "[variables('openAiSettings').embeddingsModel.deployment.name]",
         "OPENAI__COMPLETIONSDEPLOYMENT": "[variables('openAiSettings').completionsModel.deployment.name]",
         "OPENAI__MAXCONVERSATIONTOKENS": "[variables('openAiSettings').maxConversationTokens]",
         "OPENAI__MAXCOMPLETIONTOKENS": "[variables('openAiSettings').maxCompletionTokens]",
-        "OPENAI__MAXEMBEDDINGTOKENS": "[variables('openAiSettings').maxEmbeddingTokens]",
         "MONGODB__CONNECTION": "[format('mongodb+srv://{0}:{1}@{2}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000', variables('mongovCoreSettings').mongoClusterLogin, variables('mongovCoreSettings').mongoClusterPassword, variables('mongovCoreSettings').mongoClusterName)]",
         "MONGODB__DATABASENAME": "retaildb",
-        "MONGODB__COLLECTIONNAMES": "product,customer,vectors,completions",
+        "MONGODB__COLLECTIONNAMES": "product",
         "MONGODB__MAXVECTORSEARCHRESULTS": "10",
         "MONGODB__VECTORINDEXTYPE": "ivf"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]",
-        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').web.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').completionsModel.deployment.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]"
+        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').web.name)]"
       ]
     },
     {
@@ -331,13 +290,10 @@
         "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('Microsoft.Insights/components', variables('appServiceSettings').function.name), '2020-02-02').ConnectionString]",
         "FUNCTIONS_EXTENSION_VERSION": "~4",
         "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-        "OPENAI__ENDPOINT": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').endpoint]",
-        "OPENAI__KEY": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name), '2022-12-01').key1]",
+        "OPENAI__ENDPOINT": "[variables('openAiSettings').endPoint]",
+        "OPENAI__KEY": "[variables('openAiSettings').accountKey]",
         "OPENAI__EMBEDDINGSDEPLOYMENT": "[variables('openAiSettings').embeddingsModel.deployment.name]",
-        "OPENAI__COMPLETIONSDEPLOYMENT": "[variables('openAiSettings').completionsModel.deployment.name]",
-        "OPENAI__MAXCONVERSATIONTOKENS": "[variables('openAiSettings').maxConversationTokens]",
-        "OPENAI__MAXCOMPLETIONTOKENS": "[variables('openAiSettings').maxCompletionTokens]",
-        "OPENAI__MAXEMBEDDINGTOKENS": "[variables('openAiSettings').maxEmbeddingTokens]",
+        "OPENAI__MAXTOKENS": "8191",
         "MONGODB__CONNECTION": "[format('mongodb+srv://{0}:{1}@{2}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000', variables('mongovCoreSettings').mongoClusterLogin, variables('mongovCoreSettings').mongoClusterPassword, variables('mongovCoreSettings').mongoClusterName)]",
         "MONGODB__DATABASENAME": "retaildb",
         "MONGODB__COLLECTIONNAMES": "product,customer,vectors,completions",
@@ -347,8 +303,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]",
         "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').function.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('{0}fnstorage', parameters('name')))]"
       ]
     },

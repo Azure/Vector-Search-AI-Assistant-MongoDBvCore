@@ -1,23 +1,21 @@
 @description('Location where all resources will be deployed. This value defaults to the **East US** region.')
 @allowed([
   'australiaeast'
+  'canadaeast'
   'westeurope'
+  'francecentral'
   'japaneast'
+  'swedencentral'
+  'switzerlandnorth'
   'uksouth'
   'eastus'
   'eastus2'
+  'northcentralus'
   'southcentralus'
 ])
 param location string = 'eastus'
 
-@description('''
-Unique name for the deployed services below. Max length 15 characters, alphanumeric only:
-- Azure Cosmos DB for MongoDB vCore
-- Azure App Service
-- Azure Functions
-
-The name defaults to a unique string generated from the resource group identifier.
-''')
+@description('Unique name for the deployed services below. Max length 15 characters, alphanumeric only:\r\n- Azure Cosmos DB for MongoDB vCore\r\n- Azure App Service\r\n- Azure Functions\r\n\r\nThe name defaults to a unique string generated from the resource group identifier.\r\n')
 @maxLength(15)
 param name string = uniqueString(resourceGroup().id)
 
@@ -50,12 +48,11 @@ param openAiAccountName string = ''
 @secure()
 param openAiAccountKey string = ''
 
-@description('Specifies the deployed model name for your Azure OpenAI account completions API (GPT 4).')
-param openAiCompletionsModelName string = ''
+@description('Specifies the DEPLOYMENT NAME for the GPT model in your Azure OpenAI account.')
+param openAiCompletionsModelDeploymentName string = ''
 
-@description('Specifies the deployed model name for your Azure OpenAI account embeddings API.')
-param openAiEmbeddingsModelName string = ''
-
+@description('Specifies the DEPLOYMENT NAME for the embbeddings model in you Azure OpenAI account.')
+param openAiEmbeddingsDeploymentName string = ''
 
 @description('Git repository URL for the application source. This defaults to the [`Azure/Vector-Search-Ai-Assistant`](https://github.com/Azure/Vector-Search-AI-Assistant-MongoDBvCore.git) repository.')
 param appGitRepository string = 'https://github.com/Azure/Vector-Search-AI-Assistant-MongoDBvCore.git'
@@ -71,27 +68,21 @@ var openAiSettings = {
   maxConversationTokens: '100'
   maxCompletionTokens: '500'
   completionsModel: {
-    name: 'gpt-4'
-    version: '0613'
     deployment: {
-      name: openAiCompletionsModelName
+      name: openAiCompletionsModelDeploymentName
     }
   }
   embeddingsModel: {
-    name: openAiEmbeddingsModelName
-    version: '2'
     deployment: {
-      name: openAiEmbeddingsModelName
+      name: openAiEmbeddingsDeploymentName
     }
   }
 }
-
 var mongovCoreSettings = {
   mongoClusterName: '${name}-mongo'
   mongoClusterLogin: mongoDbUserName
   mongoClusterPassword: mongoDbPassword
 }
-
 var appServiceSettings = {
   plan: {
     name: '${name}-web-plan'
@@ -113,7 +104,7 @@ var appServiceSettings = {
   }
 }
 
-resource mongoCluster 'Microsoft.DocumentDB/mongoClusters@2023-09-15-preview' = {
+resource mongovCoreSettings_mongoCluster 'Microsoft.DocumentDB/mongoClusters@2023-09-15-preview' = {
   name: mongovCoreSettings.mongoClusterName
   location: location
   properties: {
@@ -132,25 +123,29 @@ resource mongoCluster 'Microsoft.DocumentDB/mongoClusters@2023-09-15-preview' = 
   }
 }
 
-resource mongoFirewallRulesAllowAzure 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-09-15-preview' = {
-  parent: mongoCluster
-  name: 'allowAzure'
+resource mongovCoreSettings_mongoClusterName_allowAzure 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-09-15-preview' = {
+  name: '${mongovCoreSettings.mongoClusterName}/allowAzure'
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'
   }
+  dependsOn: [
+    mongovCoreSettings_mongoCluster
+  ]
 }
 
-resource mongoFirewallRulesAllowAll 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-09-15-preview' = {
-  parent: mongoCluster
-  name: 'allowAll'
+resource mongovCoreSettings_mongoClusterName_allowAll 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-09-15-preview' = {
+  name: '${mongovCoreSettings.mongoClusterName}/allowAll'
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '255.255.255.255'
   }
+  dependsOn: [
+    mongovCoreSettings_mongoCluster
+  ]
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
+resource appServiceSettings_plan_name 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: appServiceSettings.plan.name
   location: location
   sku: {
@@ -158,16 +153,16 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   }
 }
 
-resource appServiceWeb 'Microsoft.Web/sites@2022-03-01' = {
+resource appServiceSettings_web_name 'Microsoft.Web/sites@2022-03-01' = {
   name: appServiceSettings.web.name
   location: location
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: appServiceSettings_plan_name.id
     httpsOnly: true
   }
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2021-09-01' = {
+resource name_fnstorage 'Microsoft.Storage/storageAccounts@2021-09-01' = {
   name: '${name}fnstorage'
   location: location
   kind: 'Storage'
@@ -176,28 +171,28 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-09-01' = {
   }
 }
 
-resource appServiceFunction 'Microsoft.Web/sites@2022-03-01' = {
+resource appServiceSettings_function_name 'Microsoft.Web/sites@2022-03-01' = {
   name: appServiceSettings.function.name
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: appServiceSettings_plan_name.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
     }
   }
   dependsOn: [
-    storageAccount
+
+    name_fnstorage
   ]
 }
 
-resource appServiceWebSettings 'Microsoft.Web/sites/config@2022-03-01' = {
-  parent: appServiceWeb
-  name: 'appsettings'
+resource appServiceSettings_web_name_appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
+  name: '${appServiceSettings.web.name}/appsettings'
   kind: 'string'
   properties: {
-    APPINSIGHTS_INSTRUMENTATIONKEY: appServiceWebInsights.properties.InstrumentationKey
+    APPINSIGHTS_INSTRUMENTATIONKEY: reference(Microsoft_Insights_components_appServiceSettings_web_name.id, '2020-02-02').InstrumentationKey
     OPENAI__ENDPOINT: openAiSettings.endPoint
     OPENAI__KEY: openAiSettings.accountKey
     OPENAI__EMBEDDINGSDEPLOYMENT: openAiSettings.embeddingsModel.deployment.name
@@ -208,16 +203,20 @@ resource appServiceWebSettings 'Microsoft.Web/sites/config@2022-03-01' = {
     MONGODB__DATABASENAME: 'retaildb'
     MONGODB__COLLECTIONNAMES: 'product'
     MONGODB__MAXVECTORSEARCHRESULTS: '10'
+    MONGODB__VECTORINDEXTYPE: 'ivf'
   }
+  dependsOn: [
+    appServiceSettings_web_name
+
+  ]
 }
 
-resource appServiceFunctionSettings 'Microsoft.Web/sites/config@2022-03-01' = {
-  parent: appServiceFunction
-  name: 'appsettings'
+resource appServiceSettings_function_name_appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
+  name: '${appServiceSettings.function.name}/appsettings'
   kind: 'string'
   properties: {
-    AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${name}fnstorage;EndpointSuffix=core.windows.net;AccountKey=${storageAccount.listKeys().keys[0].value}'
-    APPLICATIONINSIGHTS_CONNECTION_STRING: appServiceFunctionsInsights.properties.ConnectionString
+    AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${name}fnstorage;EndpointSuffix=core.windows.net;AccountKey=${listKeys(name_fnstorage.id, '2021-09-01').keys[0].value}'
+    APPLICATIONINSIGHTS_CONNECTION_STRING: reference(Microsoft_Insights_components_appServiceSettings_function_name.id, '2020-02-02').ConnectionString
     FUNCTIONS_EXTENSION_VERSION: '~4'
     FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
     OPENAI__ENDPOINT: openAiSettings.endPoint
@@ -226,52 +225,64 @@ resource appServiceFunctionSettings 'Microsoft.Web/sites/config@2022-03-01' = {
     OPENAI__MAXTOKENS: '8191'
     MONGODB__CONNECTION: 'mongodb+srv://${mongovCoreSettings.mongoClusterLogin}:${mongovCoreSettings.mongoClusterPassword}@${mongovCoreSettings.mongoClusterName}.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
     MONGODB__DATABASENAME: 'retaildb'
-    MONGODB__COLLECTIONNAMES: 'product'
+    MONGODB__COLLECTIONNAMES: 'product,customer,vectors,completions'
+    MONGODB__MAXVECTORSEARCHRESULTS: '10'
+    MONGODB__VECTORINDEXTYPE: 'ivf'
   }
+  dependsOn: [
+    appServiceSettings_function_name
+
+  ]
 }
 
-resource appServiceWebDeployment 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
-  parent: appServiceWeb
-  name: 'web'
+resource appServiceSettings_web_name_web 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
+  name: '${appServiceSettings.web.name}/web'
   properties: {
     repoUrl: appServiceSettings.web.git.repo
     branch: appServiceSettings.web.git.branch
     isManualIntegration: true
   }
   dependsOn: [
-    appServiceWebSettings
+    appServiceSettings_web_name
+    appServiceSettings_web_name_appsettings
   ]
 }
 
-resource appServiceFunctionsDeployment 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
-  parent: appServiceFunction
-  name: 'web'
+resource appServiceSettings_function_name_web 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
+  name: '${appServiceSettings.function.name}/web'
   properties: {
     repoUrl: appServiceSettings.web.git.repo
     branch: appServiceSettings.web.git.branch
     isManualIntegration: true
   }
   dependsOn: [
-    appServiceFunctionSettings
+    appServiceSettings_function_name
+    appServiceSettings_function_name_appsettings
   ]
 }
 
-resource appServiceFunctionsInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: appServiceFunction.name
+resource Microsoft_Insights_components_appServiceSettings_function_name 'Microsoft.Insights/components@2020-02-02' = {
+  name: appServiceSettings.function.name
   location: location
   kind: 'web'
   properties: {
     Application_Type: 'web'
   }
+  dependsOn: [
+    appServiceSettings_function_name
+  ]
 }
 
-resource appServiceWebInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: appServiceWeb.name
+resource Microsoft_Insights_components_appServiceSettings_web_name 'Microsoft.Insights/components@2020-02-02' = {
+  name: appServiceSettings.web.name
   location: location
   kind: 'web'
   properties: {
     Application_Type: 'web'
   }
+  dependsOn: [
+    appServiceSettings_web_name
+  ]
 }
 
-output deployedUrl string = appServiceWeb.properties.defaultHostName
+output deployedUrl string = reference(appServiceSettings_web_name.id, '2022-03-01').defaultHostName
