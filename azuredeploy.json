@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.22.6.54827",
-      "templateHash": "13638871251175842378"
+      "version": "0.24.24.22086",
+      "templateHash": "8722566338792790814"
     }
   },
   "parameters": {
@@ -25,7 +25,7 @@
         "eastus2",
         "northcentralus",
         "southcentralus"
-          ],
+      ],
       "metadata": {
         "description": "Location where all resources will be deployed. This value defaults to the **East US** region."
       }
@@ -47,16 +47,6 @@
       ],
       "metadata": {
         "description": "Specifies the SKU for the Azure App Service plan. Defaults to **B1**"
-      }
-    },
-    "openAiSku": {
-      "type": "string",
-      "defaultValue": "S0",
-      "allowedValues": [
-        "S0"
-      ],
-      "metadata": {
-        "description": "Specifies the SKU for the Azure OpenAI resource. Defaults to **S0**"
       }
     },
     "mongoDbUserName": {
@@ -91,7 +81,7 @@
   "variables": {
     "openAiSettings": {
       "name": "[format('{0}-openai', parameters('name'))]",
-      "sku": "[parameters('openAiSku')]",
+      "sku": "S0",
       "maxConversationTokens": "100",
       "maxCompletionTokens": "500",
       "maxEmbeddingTokens": "8000",
@@ -108,17 +98,6 @@
         "deployment": {
           "name": "embeddings"
         }
-      }
-    },
-    "deployedRegion": {
-      "East US": {
-        "armName": "[toLower('eastus')]"
-      },
-      "South Central US": {
-        "armName": "[toLower('southcentralus')]"
-      },
-      "West Europe": {
-        "armName": "[toLower('westeurope')]"
       }
     },
     "mongovCoreSettings": {
@@ -239,8 +218,8 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]"
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]"
       ]
     },
     {
@@ -289,8 +268,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('appServiceSettings').plan.name)]",
-        "[resourceId('Microsoft.Storage/storageAccounts', format('{0}fnstorage', parameters('name')))]"
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServiceSettings').plan.name)]"
       ]
     },
     {
@@ -315,10 +293,10 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]",
-        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').web.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
         "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').completionsModel.deployment.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]"
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]",
+        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').web.name)]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]"
       ]
     },
     {
@@ -346,10 +324,11 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]",
-        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').function.name)]",
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]",
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').completionsModel.deployment.name)]",
         "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openAiSettings').name, variables('openAiSettings').embeddingsModel.deployment.name)]",
-        "[resourceId('Microsoft.Storage/storageAccounts', format('{0}fnstorage', parameters('name')))]"
+        "[resourceId('Microsoft.Storage/storageAccounts', format('{0}fnstorage', parameters('name')))]",
+        "[resourceId('Microsoft.Insights/components', variables('appServiceSettings').function.name)]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiSettings').name)]"
       ]
     },
     {
@@ -362,8 +341,7 @@
         "isManualIntegration": true
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]",
-        "[resourceId('Microsoft.Web/sites/config', variables('appServiceSettings').web.name, 'appsettings')]"
+        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]"
       ]
     },
     {
@@ -376,8 +354,7 @@
         "isManualIntegration": true
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]",
-        "[resourceId('Microsoft.Web/sites/config', variables('appServiceSettings').function.name, 'appsettings')]"
+        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]"
       ]
     },
     {
@@ -388,10 +365,7 @@
       "kind": "web",
       "properties": {
         "Application_Type": "web"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').function.name)]"
-      ]
+      }
     },
     {
       "type": "Microsoft.Insights/components",
@@ -401,10 +375,7 @@
       "kind": "web",
       "properties": {
         "Application_Type": "web"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('appServiceSettings').web.name)]"
-      ]
+      }
     }
   ],
   "outputs": {

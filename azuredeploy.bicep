@@ -26,12 +26,6 @@ param name string = uniqueString(resourceGroup().id)
 ])
 param appServiceSku string = 'B1'
 
-@description('Specifies the SKU for the Azure OpenAI resource. Defaults to **S0**')
-@allowed([
-  'S0'
-])
-param openAiSku string = 'S0'
-
 @description('MongoDB vCore user Name. No dashes.')
 param mongoDbUserName string
 
@@ -49,7 +43,7 @@ param appGetRepositoryBranch string = 'main'
 
 var openAiSettings = {
   name: '${name}-openai'
-  sku: openAiSku
+  sku: 'S0'
   maxConversationTokens: '100'
   maxCompletionTokens: '500'
   maxEmbeddingTokens: '8000'
@@ -66,17 +60,6 @@ var openAiSettings = {
     deployment: {
       name: 'embeddings'
     }
-  }
-}
-var deployedRegion = {
-  'East US': {
-    armName: toLower('eastus')
-  }
-  'South Central US': {
-    armName: toLower('southcentralus')
-  }
-  'West Europe': {
-    armName: toLower('westeurope')
   }
 }
 var mongovCoreSettings = {
@@ -105,7 +88,7 @@ var appServiceSettings = {
   }
 }
 
-resource mongovCoreSettings_mongoCluster 'Microsoft.DocumentDB/mongoClusters@2023-03-01-preview' = {
+resource mongoCluster 'Microsoft.DocumentDB/mongoClusters@2023-03-01-preview' = {
   name: mongovCoreSettings.mongoClusterName
   location: location
   properties: {
@@ -124,29 +107,25 @@ resource mongovCoreSettings_mongoCluster 'Microsoft.DocumentDB/mongoClusters@202
   }
 }
 
-resource mongovCoreSettings_mongoClusterName_allowAzure 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-03-01-preview' = {
-  name: '${mongovCoreSettings.mongoClusterName}/allowAzure'
+resource mongoClusterAllowAzure 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-03-01-preview' = {
+  parent: mongoCluster
+  name: 'allowAzure'
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'
   }
-  dependsOn: [
-    mongovCoreSettings_mongoCluster
-  ]
 }
 
-resource mongovCoreSettings_mongoClusterName_allowAll 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-03-01-preview' = {
-  name: '${mongovCoreSettings.mongoClusterName}/allowAll'
+resource mongoClusterAllowAll 'Microsoft.DocumentDB/mongoClusters/firewallRules@2023-03-01-preview' = {
+  parent: mongoCluster
+  name: 'allowAll'
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '255.255.255.255'
   }
-  dependsOn: [
-    mongovCoreSettings_mongoCluster
-  ]
 }
 
-resource openAiSettings_name 'Microsoft.CognitiveServices/accounts@2022-12-01' = {
+resource openAiAccount 'Microsoft.CognitiveServices/accounts@2022-12-01' = {
   name: openAiSettings.name
   location: location
   sku: {
@@ -159,8 +138,9 @@ resource openAiSettings_name 'Microsoft.CognitiveServices/accounts@2022-12-01' =
   }
 }
 
-resource openAiSettings_name_openAiSettings_embeddingsModel_deployment_name 'Microsoft.CognitiveServices/accounts/deployments@2022-12-01' = {
-  name: '${openAiSettings.name}/${openAiSettings.embeddingsModel.deployment.name}'
+resource embeddingsModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2022-12-01' = {
+  parent: openAiAccount
+  name: openAiSettings.embeddingsModel.deployment.name
   properties: {
     model: {
       format: 'OpenAI'
@@ -171,13 +151,11 @@ resource openAiSettings_name_openAiSettings_embeddingsModel_deployment_name 'Mic
       scaleType: 'Standard'
     }
   }
-  dependsOn: [
-    openAiSettings_name
-  ]
 }
 
-resource openAiSettings_name_openAiSettings_completionsModel_deployment_name 'Microsoft.CognitiveServices/accounts/deployments@2022-12-01' = {
-  name: '${openAiSettings.name}/${openAiSettings.completionsModel.deployment.name}'
+resource completionsModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2022-12-01' = {
+  parent: openAiAccount
+  name: openAiSettings.completionsModel.deployment.name
   properties: {
     model: {
       format: 'OpenAI'
@@ -189,12 +167,11 @@ resource openAiSettings_name_openAiSettings_completionsModel_deployment_name 'Mi
     }
   }
   dependsOn: [
-    openAiSettings_name
-    openAiSettings_name_openAiSettings_embeddingsModel_deployment_name
+    embeddingsModelDeployment  //this is necessary because OpenAI can only deploy one model at a time
   ]
 }
 
-resource appServiceSettings_plan_name 'Microsoft.Web/serverfarms@2022-03-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: appServiceSettings.plan.name
   location: location
   sku: {
@@ -202,16 +179,16 @@ resource appServiceSettings_plan_name 'Microsoft.Web/serverfarms@2022-03-01' = {
   }
 }
 
-resource appServiceSettings_web_name 'Microsoft.Web/sites@2022-03-01' = {
+resource appServiceWeb 'Microsoft.Web/sites@2022-03-01' = {
   name: appServiceSettings.web.name
   location: location
   properties: {
-    serverFarmId: appServiceSettings_plan_name.id
+    serverFarmId: appServicePlan.id
     httpsOnly: true
   }
 }
 
-resource name_fnstorage 'Microsoft.Storage/storageAccounts@2021-09-01' = {
+resource functionStorage 'Microsoft.Storage/storageAccounts@2021-09-01' = {
   name: '${name}fnstorage'
   location: location
   kind: 'Storage'
@@ -220,30 +197,27 @@ resource name_fnstorage 'Microsoft.Storage/storageAccounts@2021-09-01' = {
   }
 }
 
-resource appServiceSettings_function_name 'Microsoft.Web/sites@2022-03-01' = {
+resource appServiceFunction 'Microsoft.Web/sites@2022-03-01' = {
   name: appServiceSettings.function.name
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: appServiceSettings_plan_name.id
+    serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
     }
   }
-  dependsOn: [
-
-    name_fnstorage
-  ]
 }
 
-resource appServiceSettings_web_name_appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
-  name: '${appServiceSettings.web.name}/appsettings'
+resource appServiceWebSettings 'Microsoft.Web/sites/config@2022-03-01' = {
+  parent: appServiceWeb
+  name: 'appsettings'
   kind: 'string'
   properties: {
-    APPINSIGHTS_INSTRUMENTATIONKEY: reference(Microsoft_Insights_components_appServiceSettings_web_name.id, '2020-02-02').InstrumentationKey
-    OPENAI__ENDPOINT: reference(openAiSettings_name.id, '2022-12-01').endpoint
-    OPENAI__KEY: listKeys(openAiSettings_name.id, '2022-12-01').key1
+    APPINSIGHTS_INSTRUMENTATIONKEY: insightsWeb.properties.InstrumentationKey
+    OPENAI__ENDPOINT: openAiAccount.properties.endpoint
+    OPENAI__KEY: openAiAccount.listKeys().key1
     OPENAI__EMBEDDINGSDEPLOYMENT: openAiSettings.embeddingsModel.deployment.name
     OPENAI__COMPLETIONSDEPLOYMENT: openAiSettings.completionsModel.deployment.name
     OPENAI__MAXCONVERSATIONTOKENS: openAiSettings.maxConversationTokens
@@ -256,23 +230,22 @@ resource appServiceSettings_web_name_appsettings 'Microsoft.Web/sites/config@202
     MONGODB__VECTORINDEXTYPE: 'ivf'
   }
   dependsOn: [
-    appServiceSettings_web_name
-
-    openAiSettings_name_openAiSettings_completionsModel_deployment_name
-    openAiSettings_name_openAiSettings_embeddingsModel_deployment_name
+    completionsModelDeployment
+    embeddingsModelDeployment
   ]
 }
 
-resource appServiceSettings_function_name_appsettings 'Microsoft.Web/sites/config@2022-03-01' = {
-  name: '${appServiceSettings.function.name}/appsettings'
+resource appServiceFunctionSettings 'Microsoft.Web/sites/config@2022-03-01' = {
+  parent: appServiceFunction
+  name: 'appsettings'
   kind: 'string'
   properties: {
-    AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${name}fnstorage;EndpointSuffix=core.windows.net;AccountKey=${listKeys(name_fnstorage.id, '2021-09-01').keys[0].value}'
-    APPLICATIONINSIGHTS_CONNECTION_STRING: reference(Microsoft_Insights_components_appServiceSettings_function_name.id, '2020-02-02').ConnectionString
+    AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${name}fnstorage;EndpointSuffix=core.windows.net;AccountKey=${functionStorage.listKeys().keys[0].value}'
+    APPLICATIONINSIGHTS_CONNECTION_STRING: insightsFunction.properties.ConnectionString
     FUNCTIONS_EXTENSION_VERSION: '~4'
     FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
-    OPENAI__ENDPOINT: reference(openAiSettings_name.id, '2022-12-01').endpoint
-    OPENAI__KEY: listKeys(openAiSettings_name.id, '2022-12-01').key1
+    OPENAI__ENDPOINT: openAiAccount.properties.endpoint
+    OPENAI__KEY: openAiAccount.listKeys().key1
     OPENAI__EMBEDDINGSDEPLOYMENT: openAiSettings.embeddingsModel.deployment.name
     OPENAI__COMPLETIONSDEPLOYMENT: openAiSettings.completionsModel.deployment.name
     OPENAI__MAXCONVERSATIONTOKENS: openAiSettings.maxConversationTokens
@@ -285,61 +258,47 @@ resource appServiceSettings_function_name_appsettings 'Microsoft.Web/sites/confi
     MONGODB__VECTORINDEXTYPE: 'ivf'
   }
   dependsOn: [
-    appServiceSettings_function_name
-
-    openAiSettings_name_openAiSettings_embeddingsModel_deployment_name
-
+    completionsModelDeployment
+    embeddingsModelDeployment
   ]
 }
 
-resource appServiceSettings_web_name_web 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
-  name: '${appServiceSettings.web.name}/web'
+resource appServiceWebSourceControl 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
+  parent: appServiceWeb
+  name: 'web'
   properties: {
     repoUrl: appServiceSettings.web.git.repo
     branch: appServiceSettings.web.git.branch
     isManualIntegration: true
   }
-  dependsOn: [
-    appServiceSettings_web_name
-    appServiceSettings_web_name_appsettings
-  ]
 }
 
-resource appServiceSettings_function_name_web 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
-  name: '${appServiceSettings.function.name}/web'
+resource appServiceFunctionSourceControl 'Microsoft.Web/sites/sourcecontrols@2021-03-01' = {
+  parent: appServiceFunction
+  name: 'web'
   properties: {
     repoUrl: appServiceSettings.web.git.repo
     branch: appServiceSettings.web.git.branch
     isManualIntegration: true
   }
-  dependsOn: [
-    appServiceSettings_function_name
-    appServiceSettings_function_name_appsettings
-  ]
 }
 
-resource Microsoft_Insights_components_appServiceSettings_function_name 'Microsoft.Insights/components@2020-02-02' = {
+resource insightsFunction 'Microsoft.Insights/components@2020-02-02' = {
   name: appServiceSettings.function.name
   location: location
   kind: 'web'
   properties: {
     Application_Type: 'web'
   }
-  dependsOn: [
-    appServiceSettings_function_name
-  ]
 }
 
-resource Microsoft_Insights_components_appServiceSettings_web_name 'Microsoft.Insights/components@2020-02-02' = {
+resource insightsWeb 'Microsoft.Insights/components@2020-02-02' = {
   name: appServiceSettings.web.name
   location: location
   kind: 'web'
   properties: {
     Application_Type: 'web'
   }
-  dependsOn: [
-    appServiceSettings_web_name
-  ]
 }
 
-output deployedUrl string = reference(appServiceSettings_web_name.id, '2022-03-01').defaultHostName
+output deployedUrl string = appServiceWeb.properties.defaultHostName
